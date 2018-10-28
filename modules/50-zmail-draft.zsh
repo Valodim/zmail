@@ -1,38 +1,8 @@
-typeset -gH ZSH_IS_DRAFTDIR
-
-draftdir_chpwd() {
-    local is_maildir
-    [[ $PWD == ~/Maildir/draft/* ]] && is_draftdir=1 || is_draftdir=
-    [[ $ZSH_IS_DRAFTDIR == $is_draftdir ]] && return
-    ZSH_IS_DRAFTDIR=$is_draftdir
-    if [[ $is_draftdir == 1 ]]; then
-        draftdir_enter
-    else
-        draftdir_leave
-    fi
++zmail-draft-trigger () {
+    [[ $PWD == ~/Maildir/draft/* ]]
 }
 
-draftdir_enter() {
-    draftdir_bindkeys
-}
-
-draftdir_leave() {
-    bindkey -A draftdir-prev-keymap main
-    bindkey -D draftdir-prev-keymap
-}
-
-draftdir_bindkeys() {
-    bindkey -A main draftdir-prev-keymap
-    bindkey -N draftdir-keymap main
-    bindkey -A draftdir-keymap main
-
-    # bindkey '^[j' maildir-move-next-list
-    # bindkey '^[k' maildir-move-prev-list
-    # bindkey '^[h' maildir-move-5prev-list
-    # bindkey '^[l' maildir-move-5next-list
-    # bindkey '^[t' maildir-move-top-list
-    # bindkey '^[e' maildir-move-end-list
-
++zmail-draft-bindkeys () {
     bindkey '^[o' draftdir-open
     bindkey '^[O' draftdir-open-full
 
@@ -62,8 +32,7 @@ for i in ${(k)draftdir_ops}; do
     zle -N draftdir-$i-list draftdir-op-generic
 done
 
-+line-finish-draftdir() {
-    [[ -n $ZSH_IS_DRAFTDIR ]] || return 0
++zmail-draft-line-finish() {
     case $BUFFER in
         "")
             BUFFER=" vim message.eml"
@@ -72,6 +41,29 @@ done
     return 1
 }
 
-autoload -U add-zsh-hook add-zle-hook-widget
-add-zsh-hook chpwd draftdir_chpwd
-add-zle-hook-widget line-finish +line-finish-draftdir
++zmail-draft-prompt-precmd () {
+    # remove pwd prompt bit
+    prompt_bits=( ${prompt_bits:#*%1v*} )
+
+    local from=$(maddr -h from -a ./message.eml)
+    local to=( ${(f)"$(maddr -h to:cc -a ./message.eml)"} )
+    if (( $#to > 1 )); then
+        to[2]="+$(( $#to - 1 ))"
+        to[3,$]=( )
+    elif (( $#to == 0)); then
+        to[1]="?"
+    fi
+
+    local attachs=( attachments/*(.N) )
+    if (( $#attachs == 0 )); then
+        attachs=
+    elif (( $#attachs == 1 )); then
+        attachs="$sep2  "
+    else
+        attachs="$sep2  $#attachs "
+    fi
+
+    prompt_bits+=( "%K{black}$sep1%F{white} $from ﰲ $to $attachs%F{black}" )
+}
+
+zmode-register zmail-draft

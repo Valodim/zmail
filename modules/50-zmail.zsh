@@ -1,46 +1,10 @@
-typeset -gH ZSH_IS_MAILDIR ZSH_MAILDIR_LIST ZSH_MAILDIR_QUERY ZSH_MAILDIR_SAVED_LD_PRELOAD
+typeset -gH ZSH_MAILDIR_LIST ZSH_MAILDIR_QUERY
 
-m() {
-    mautocrypt -i &>/dev/null
-
-    mshow "$@"
-    (( ${+argv[(r)-X]} || ${+argv[(r)-O]} )) && return
-
-    local -a msgs
-    msgs=( "${@:#-*}" )
-    mflag -S $msgs > /dev/null
++zmail-trigger () {
+    [[ $PWD == ~/Maildir ]]
 }
 
-mspam() {
-    [[ $# == 0 ]] && set -- .
-    mrefile -k "$@" Spam
-    mflag -T "$@" > /dev/null
-}
-
-mclean() {
-    local numtrashed
-    numtrashed=$(mdirs . | grep -v -E '(Trash|Spam)' | mlist -T | mrefile -v Trash | wc -l)
-    echo "Moved $numtrashed msgs to Trash. Reindexing…"
-    notmuch new
-    ZSH_MAILDIR_LIST=1
-}
-
-maildir_chpwd() {
-    local is_maildir
-    [[ $PWD == ~/Maildir ]] && is_maildir=1 || is_maildir=
-    [[ $ZSH_IS_MAILDIR == $is_maildir ]] && return
-    ZSH_IS_MAILDIR=$is_maildir
-    if [[ $is_maildir == 1 ]]; then
-        maildir_enter
-    else
-        maildir_leave
-    fi
-}
-
-maildir_enter() {
-    ZSH_MAILDIR_SAVED_LD_PRELOAD=$LD_PRELOAD
-    # TODO keep? LD_PRELOAD=
-
++zmail-enter () {
     ZSH_MAILDIR_QUERY=inbox
 
     local seqdir=${MBLAZE:-$HOME/.mblaze}/seqs
@@ -50,36 +14,28 @@ maildir_enter() {
     maildir_load_queries
     maildir_loadseq
 
-    maildir_bindkeys
+    alias -g M='$(mseq .)'
+    alias -g MSGID='$(maddr -h message-id -a .)'
+    alias -g MID='mid:$(maddr -h message-id -a .)'
+    alias -g MQ='$(maildir_current_query)'
+
     ZSH_MAILDIR_LIST=1
 }
 
-maildir_leave() {
-    LD_PRELOAD=$ZSH_MAILDIR_SAVED_LD_PRELOAD
-    ZSH_MAILDIR_SAVED_LD_PRELOAD=
-
++zmail-leave() {
     [[ -n $MAILSEQ ]] && rm -- $MAILSEQ
-    unset MAILSEQ
-    unset MAILTAGS
-
-    bindkey -A maildir-prev-keymap main
-    bindkey -D maildir-prev-keymap
+    unset MAILSEQ MAILTAGS
+    unalias M MSGID MID MQ
 }
 
-maildir_zshexit() {
-    [[ -n $ZSH_IS_MAILDIR ]] || return
++zmail-zshexit() {
     if [[ -f $MAILSEQ && $MAILTAGS ]]; then
-        rm -- $MAILSEQ $MAILSEQ.old $MAILTAGS
-        unset MAILSEQ
-        unset MAILTAGS
+        rm -- $MAILSEQ $MAILTAGS
+        unset MAILSEQ MAILTAGS
     fi
 }
 
-maildir_bindkeys() {
-    bindkey -A main maildir-prev-keymap
-    bindkey -N maildir-keymap main
-    bindkey -A maildir-keymap main
-
++zmail-bindkeys () {
     bindkey '^[j' maildir-move-next-list
     bindkey '^[k' maildir-move-prev-list
     bindkey '^[h' maildir-move-5prev-list
@@ -97,6 +53,51 @@ maildir_bindkeys() {
     bindkey '^[n' maildir-mark-unseen-list # like "New"
     bindkey '^[b' maildir-mark-trash-list # like "garBage"
     bindkey '^[B' maildir-mark-spam-list # like shift-garBage
+}
+
++zmail-line-init() {
+    mfix
+    if [[ -n $ZSH_MAILDIR_LIST ]]; then
+        ZSH_MAILDIR_LIST=
+        echo
+        mfancyscan
+        zle .redisplay
+    fi
+}
+
++zmail-line-finish() {
+    case $BUFFER in
+        "")
+            ZSH_MAILDIR_LIST=1
+            ;;
+        <->)
+            BUFFER=" mseq -C $BUFFER"
+            ZSH_MAILDIR_LIST=1
+            zle .accept-line
+            ;;
+    esac
+    return 1
+}
+
++zmail-prompt-precmd () {
+    # remove pwd prompt bit
+    prompt_bits=( ${prompt_bits:#*%1v*} )
+
+    local mailnum
+    mailnum=$(mseq -f | wc -l)
+
+    local -a drafts
+    local drafticon=
+    drafts=( draft/*(N) )
+    if [[ -n $drafts ]]; then
+        drafticon=" $#drafts "
+    fi
+
+    local mailboxquery=$ZSH_MAILDIR_QUERY
+    if [[ $mailboxquery == custom ]]; then
+        mailboxquery='[ '${ZSH_MAILDIR_CUSTOM_QUERY[1,25]}' ]'
+    fi
+    prompt_bits+=( "%K{black}$sep1%F{white} $mailboxquery  $mailnum ${drafticon}%F{black}" )
 }
 
 typeset -hA maildir_ops
@@ -136,6 +137,31 @@ for i in ${(k)maildir_ops}; do
     zle -N maildir-$i maildir-op-generic
     zle -N maildir-$i-list maildir-op-generic
 done
+
+m() {
+    mautocrypt -i &>/dev/null
+
+    mshow "$@"
+    (( ${+argv[(r)-X]} || ${+argv[(r)-O]} )) && return
+
+    local -a msgs
+    msgs=( "${@:#-*}" )
+    mflag -S $msgs > /dev/null
+}
+
+mspam() {
+    [[ $# == 0 ]] && set -- .
+    mrefile -k "$@" Spam
+    mflag -T "$@" > /dev/null
+}
+
+mclean() {
+    local numtrashed
+    numtrashed=$(mdirs . | grep -v -E '(Trash|Spam)' | mlist -T | mrefile -v Trash | wc -l)
+    echo "Moved $numtrashed msgs to Trash. Reindexing…"
+    notmuch new
+    ZSH_MAILDIR_LIST=1
+}
 
 mrefresh() {
     notmuch new --quiet
@@ -202,33 +228,6 @@ mq() {
     fi
 }
 
-+line-finish-maildir() {
-    [[ -n $ZSH_IS_MAILDIR ]] || return 0
-    case $BUFFER in
-        "")
-            ZSH_MAILDIR_LIST=1
-            ;;
-        <->)
-            BUFFER=" mseq -C $BUFFER"
-            ZSH_MAILDIR_LIST=1
-            zle .accept-line
-            ;;
-    esac
-    return 1
-}
-
-+line-init-maildir() {
-    [[ -n $ZSH_IS_MAILDIR ]] || return
-
-    mfix
-    if [[ -n $ZSH_MAILDIR_LIST ]]; then
-        ZSH_MAILDIR_LIST=
-        echo
-        mfancyscan
-        zle .redisplay
-    fi
-}
-
 _mq_queries() {
     setopt localoptions extendedglob
     local name query
@@ -259,13 +258,4 @@ _mq () {
 
 compdef _mq mq
 
-alias -g M='$(mseq .)'
-alias -g MSGID='$(maddr -h message-id -a .)'
-alias -g MID='mid:$(maddr -h message-id -a .)'
-alias -g MQ='$(maildir_current_query)'
-
-autoload -U add-zsh-hook add-zle-hook-widget
-add-zsh-hook chpwd maildir_chpwd
-add-zsh-hook zshexit maildir_zshexit
-add-zle-hook-widget line-finish +line-finish-maildir
-add-zle-hook-widget line-init +line-init-maildir
+zmode-register zmail
