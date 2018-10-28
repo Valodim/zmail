@@ -43,14 +43,18 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY
     bindkey '^[t' zmail-move-top-list
     bindkey '^[e' zmail-move-end-list
 
-    bindkey '^[o' zmail-open
-    bindkey '^[O' zmail-open-full
     bindkey '^[r' zmail-refresh-list
     bindkey '^[R' zmail-clean-list
 
+    bindkey '^[o' zmail-open
+    bindkey '^[O' zmail-open-full
+    bindkey '^[a' zmail-open-first-attach
+    bindkey '^[A' zmail-enter
+
     bindkey '^[p' zmail-reply
 
-    bindkey '^[m' zmail-mark-seen-list # like "Mark seen'
+    bindkey '^[m' zmail-mark-seen-list # like "Mark seen"
+    bindkey '^[M' zmail-mark-muted-list # like "Mark Muted"
     bindkey '^[n' zmail-mark-unseen-list # like "New"
     bindkey '^[b' zmail-mark-trash-list # like "garBage"
     bindkey '^[B' zmail-mark-spam-list # like shift-garBage
@@ -105,6 +109,8 @@ typeset -A zmail_ops
 zmail_ops=(
     'open'        'm'
     'open-full'   'MAILFILTER=~/.mblaze/filter-nostrip m'
+    'open-first-attach' 'mopenattach'
+    'enter'       'menter'
 
     'refresh'     'mrefresh'
     'clean'       'mclean'

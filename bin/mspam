@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/zsh
 
 [[ $# == 0 ]] && set -- .
 mrefile -k "$@" Spam

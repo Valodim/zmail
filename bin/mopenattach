@@ -1,0 +1,14 @@
+#!/bin/zsh
+
+local tmpdir=$(mktemp -d)
+(
+    cd $tmpdir
+    mshow -B -x .
+    local candidates=( *.(pdf|jpg|jpeg|png)(N) )
+    if [[ -n $candidates ]]; then
+        xdg-open $candidates[1]
+    else
+        echo "No obvious attachments in this message" >&2
+    fi
+)
+rm -r $tmpdir
