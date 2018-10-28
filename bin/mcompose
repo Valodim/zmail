@@ -1,0 +1,343 @@
+#!/bin/zsh
+
+mforward () {
+    local fwdmsg=$(mseq .)
+    [[ ! -f $fwdmsg ]] && { echo "No message to reply to" >&2; return 1 }
+    new-mail
+}
+
+mreply () {
+    local replymsg=$(mseq .)
+    [[ ! -f $replymsg ]] && { echo "No message to reply to" >&2; return 1 }
+    new-mail
+}
+
+mnew () {
+    local -a to=( "$@" )
+    new-mail
+}
+
+new-mail () {
+    [[ -n $replymsg && ! -f $replymsg ]] && { echo "Reply message file not found!" >&2; return 1 }
+    [[ -n $fwdmsg && ! -f $fwdmsg ]] && { echo "Forward message file not found!" >&2; return 1 }
+    local MBLAZE=${MBLAZE:-$HOME/.mblaze}
+    local from=${EMAIL:-$(mhdr -h local-mailbox "$MBLAZE/profile")}
+
+    local draftdir=$(mktemp -d ~/Maildir/draft/$(date -I).XXX)
+    (
+        cd $draftdir
+
+        if [[ -n $replymsg ]]; then
+            prepare-reply $replymsg > message.eml
+            ln -s $replymsg reply.orig
+        elif [[ -n $fwdmsg ]]; then
+            prepare-forward $fwdmsg > message.eml
+            ln -s $fwdmsg forward.orig
+        else
+            prepare-new $to > message.eml
+        fi
+
+        mkdir attachments
+        mkdir build
+
+        ls --color=auto
+        zsh
+    )
+    if [[ ! -e $draftdir/keep ]]; then
+        echo "Discarding draft…"
+        rm -r $draftdir
+    fi
+}
+
+prepare-new() {
+    local from="$(maddr -h local-mailbox $MBLAZE/profile)"
+    local -a to
+    for addr in "$@"; do
+        local addrs=( ${(f)"$(notmuch address --sort=newest-first to:$addr | grep -- $addr)"} )
+        [[ -n $addrs ]] && to+=( $addrs[1] ) || to+=( $addr )
+    done
+
+<<EOM
+From: ${from}
+To: ${to}
+Cc: 
+Bcc: 
+Subject: 
+Message-Id: $(mgenmid)
+EOM
+
+    if [[ -f $MBLAZE/headers ]]; then
+        < $MBLAZE/headers
+    fi
+
+    echo
+
+    if [[ -f $MBLAZE/signature ]]; then
+        < $MBLAZE/signature
+    fi
+}
+
+prepare-forward() {
+    local fwdmsg=$1
+
+    local -a ownaddrs fromcandidates origrecips
+    ownaddrs=( ${(f)"$(maddr -h local-mailbox:alternate-mailboxes: $MBLAZE/profile)"} )
+    origrecips=( ${(f)"$(maddr -a -h to:cc:x-original-to $fwdmsg)"} )
+    origrecips=( ${${origrecips##*<}%%*>} )
+    fromcandidates=( ${(M)ownaddrs:#*(${(~j:|:)origrecips})*} )
+    [[ -n $fromcandidates ]] && from=$fromcandidates[1]
+
+    local subject=$(COLUMNS=10000 mscan -f '%S' $fwdmsg 2>/dev/null )
+    if [[ subject != (Fwd):\ * ]]; then
+        subject="Fwd: $subject"
+    fi
+
+    local mid=$(mhdr -h message-id $fwdmsg)
+
+<<EOM
+From: ${from}
+To: 
+Cc: 
+Bcc: 
+Subject: ${subject}
+Message-Id: $(mgenmid)
+References: ${mid}
+EOM
+
+    if [[ -f $MBLAZE/headers ]]; then
+        < $MBLAZE/headers
+    fi
+
+    echo
+
+    if [[ -f $MBLAZE/signature ]]; then
+        < $MBLAZE/signature
+        echo
+    fi
+
+    echo '-------- Forwarded Message --------'
+    mshow -q $fwdmsg
+    echo
+    DISPLAY= mshow -n -N -R $fwdmsg | sed 's/^-/- &/' # RFC 934
+    echo
+}
+
+prepare-reply() {
+    local replymsg=$1
+
+    local -a ownaddrs ownmailaddrs fromcandidates origrecips
+    ownaddrs=( ${(f)"$(maddr -h local-mailbox:alternate-mailboxes: $MBLAZE/profile)"} )
+    ownmailaddrs=( ${(f)"$(maddr -a -h local-mailbox:alternate-mailboxes: $MBLAZE/profile)"} )
+    origrecips=( ${(f)"$(maddr -a -h to:cc:x-original-to $replymsg)"} )
+    origrecips=( ${${origrecips##*<}%%*>} )
+    fromcandidates=( ${(M)ownaddrs:#*(${(~j:|:)origrecips})*} )
+    [[ -n $fromcandidates ]] && from=$fromcandidates[1]
+
+    local to=$(mhdr -h reply-to $replymsg)
+    [ -z "$to" ] && to=$(mhdr -h from $replymsg)
+
+    local -a cc
+    cc=( ${(f)"$(mhdr -d -A -h to:cc: $replymsg)"} )
+    cc=( ${(u)cc:#$to} )
+    cc=( ${cc:#$to} )
+    cc=( ${cc:#*noreply*} )
+    [[ -n $ownaddrs ]] && cc=( ${cc:#*(${(~j:|:)ownmailaddrs})*} )
+
+    local subject=$(COLUMNS=10000 mscan -f '%S' $replymsg 2>/dev/null )
+    if [[ subject != (Re|Aw):\ * ]]; then
+        subject="Re: $subject"
+    fi
+
+    local mid=$(mhdr -h message-id $replymsg)
+    local references=$(mhdr -h references $replymsg)
+
+<<EOM
+From: ${from}
+To: ${to}
+Cc: ${(j:, :)cc}
+Bcc: 
+Subject: ${subject}
+Message-Id: $(mgenmid)
+In-Reply-To: ${mid}
+References: ${mid} ${references}
+EOM
+
+    if [[ -f $MBLAZE/headers ]]; then
+        < $MBLAZE/headers
+    fi
+
+    echo
+
+    if [[ -f $MBLAZE/signature ]]; then
+        < $MBLAZE/signature
+        echo
+    fi
+
+    mquote $replymsg
+}
+
+prepare-attachments() {
+    for i in attachments/*(N); do
+        local mimetype=$(file -b --dereference -p --mime-type $i)
+        local -a encoding
+        [[ $mimetype != text/* ]] && encoding=( -e base64 )
+        makemime -c $mimetype -N ${i:t} $encoding -a 'Content-Disposition: attachment' -o build/${i:t}.mime $i
+    done
+}
+
+prepare-mime () {
+    [[ -e build ]] && rm -r build/
+    mkdir build
+    # [[ build/message.mime -ot message.eml ]] && { echo "Mime output outdated!" >&2; return 1 }
+    # [[ -e build/message.mime ]] && return 0
+
+    prepare-attachments
+    typeset -a attachments
+    attachments=( build/*.mime(N) )
+
+    setopt localoptions extendedglob
+
+    typeset -a headers header_params
+    headers=( ${(f)"$(print-headers-decoded message.eml)"} )
+    headers=( ${headers:#*:[[:space:]]#} )
+    headers+=( "Date: $(mdate)" )
+
+    header_params=( "-a "$^headers )
+
+    if [[ -z $attachments ]]; then
+        makemime -c text/plain -C 'utf-8' $header_params -o build/message.mime =(print-body message.eml)
+    else
+        makemime -c text/plain -C 'utf-8' -o build/text.mime =(print-body message.eml)
+        makemime -m 'multipart/mixed' $header_params -a 'Mime-Version: 1.0' -o build/message.mime build/text.mime
+
+        for attachment in $attachments; do
+            makemime -j <(< build/message.mime) -o build/message.mime $attachment
+        done
+    fi
+
+    encode-headers build/message.mime || exit 1
+    insert-autocrypt-header build/message.mime || exit 1
+}
+
+encode-headers () {
+    [[ -f $1 ]] || { echo "error" >&2;  exit 1 }
+    local -a hdrs=( From To Cc Subject )
+    local -a required_hdrs=( From To Subject )
+
+    for hdr in $hdrs; do
+        local content="$(mhdr -h $hdr ${1:A})"
+        [[ -n $content ]] || (( ! $+required_hdrs[(r)$hdr] )) || { echo "Missing header: $hdr" >&2; exit 1 }
+        local reencoded="$(mmime <<< "$hdr: $content")"
+        reformail -I $reencoded < =(< $1) > $1
+    done
+
+}
+
+insert-autocrypt-header() {
+    local MBLAZE=${MBLAZE:-$HOME/.mblaze}
+    local from=$(maddr -h from -a "$1")
+    [[ -f $MBLAZE/autocrypt-headers/$from ]] || { echo "no autocrypt header for $from" >&2; return }
+    local ac="$(< $MBLAZE/autocrypt-headers/$from)"
+
+    reformail -a $ac < =(< $1) > $1
+}
+
+print-headers-decoded() {
+    [[ -f $1 ]] || { echo "error" >&2;  exit 1 }
+    mhdr "${1:A}"
+}
+print-headers() {
+    [[ -f $1 ]] || { echo "error" >&2;  exit 1 }
+    sed '/^$/q' "$1" | head -n -1
+}
+print-body-for-encryption() {
+    [[ -f $1 ]] || { echo "error" >&2;  exit 1 }
+    sed '/^$/q' "$1" | head -n -1 | grep -i -E '^(content-type|content-transfer-encoding):'
+    awk '/^$/,0' "$1"
+}
+print-body() {
+    [[ -f $1 ]] || { echo "error" >&2;  exit 1 }
+    awk '/^$/,0' "$1"
+}
+
+msign() {
+    echo "Not implemented" >&2
+    return 1
+}
+
+mencrypt() {
+    [[ ! -f message.eml ]] && { echo "Missing message.eml, no draft to send!" >&2; return 1 }
+
+    prepare-mime
+
+    [[ "$(mhdr -h content-type build/message.mime)" == 'multipart/encrypted'* ]] && {
+        echo "Already encrypted"
+        return 2
+    }
+
+    local -a recipients
+    recipients=( ${(f)"$(maddr -a -h to:cc:bcc ./message.eml)"} )
+
+    [[ -z $recipients ]] && { echo 'No recipients to encrypt to!' >&2; return 2 }
+
+    print-body-for-encryption build/message.mime |
+        gpg --armor --encrypt --sign --recipient=$^recipients |
+        makemime -c 'application/octet-stream' -o build/encrypted-content.mime -
+
+    {
+        print-headers build/message.mime | grep -E -i -v '^(content-type|content-transfer-encoding):'
+        makemime -j \( -m 'multipart/encrypted; protocol="application/pgp-encrypted"' \
+            \( -c 'application/pgp-encrypted' - \) \) -o - build/encrypted-content.mime <<< 'Version: 1'
+    } > build/encrypted.mime
+}
+
+mbuild() {
+    [[ ! -f message.eml ]] && { echo "Missing message.eml, no draft to send!" >&2; return 1; }
+
+    if [[ -f build/encrypted.mime ]]; then
+        echo "Using encrypted message"
+        [[ build/encrypted.mime -ot message.eml ]] && { echo "Encrypted message out of date!" >&2; return 1; }
+        cp build/encrypted.mime build/message.mime
+        return
+    fi
+
+    prepare-mime || return 1
+}
+
+msend() {
+    mbuild || return 1
+
+    [[ ! -f build/message.mime ]] && { echo "Missing build/message.mime, no message to send!" >&2; return 1; }
+
+    local MBLAZE=${MBLAZE:-$HOME/.mblaze}
+    local sendmail=$(mhdr -h sendmail "$MBLAZE/profile")
+    local sendmail_args=( $(mhdr -h sendmail-args "$MBLAZE/profile") )
+    local -a sendmail_cmd
+    sendmail_cmd=( ${sendmail:-sendmail} "$@" ${sendmail_args:--t} )
+
+    if ! $sendmail_cmd < build/message.mime; then
+        echo 'Error sending message!' >&2
+        return 1
+    fi
+
+    mdeliver -c -X S ~/Maildir/Sent < build/message.mime
+    [[ -e reply.orig ]] && flag-and-relink -R reply.orig
+    [[ -e forward.orig ]] && flag-and-relink -P forward.orig
+
+    return 0
+}
+
+flag-and-relink() {
+    [[ -e $2 ]] || return 1
+
+    local neworig=$(mflag $1 $2(:A))
+    rm $2
+    ln -s $neworig $2
+}
+
+if [[ ${0:t} != m* ]] || (( ! $+functions[${0:t}] )); then
+    echo "Unknown command: ${0:t}" >&2
+    return 1
+fi
+
+"${0:t}" "$@"

@@ -1,0 +1,22 @@
+#!/bin/zsh
+
+msgdir=~/Maildir/message
+[[ $PWD == $msgdir ]] && { echo "Already in a message!" >&2; return 1; }
+[[ -e $msgdir ]] && { echo "Another message already open (stale?)" >&2; return 1; }
+
+local -a msg
+msg=( $(mseq -f ${1:-.}) )
+[[ $#msg != 1 ]] && { echo "Single message must be seletected" >&2; return 1; }
+[[ -f $msg ]] || { echo "Current message not available" >&2; return 1; }
+mkdir $msgdir
+(
+  cd message
+  mshow -t $msg
+  mshow -B -x $msg
+  mshow $msg > text
+  BUFFER="MAILFILTER=~/.mblaze/filter-nostrip" mshow $msg > fulltext
+  ln -s $msg msg
+  ls
+  zsh
+)
+rm -r message

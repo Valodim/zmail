@@ -1,0 +1,46 @@
+#!/bin/zsh -e
+
+tmp=$(mktemp -t mgpg.XXXXXX)
+trap "rm -f '$tmp'" INT TERM EXIT
+
+local sessionkey
+if [[ -n $MESSAGE_ID ]]; then
+    sessionkey=$(python - mid:${${MESSAGE_ID#*<}%>*} <<< "import notmuch
+import sys
+
+db = notmuch.Database()
+msgs = notmuch.Query(db, sys.argv[1]).search_messages()
+for msg in msgs:
+    # print(msg.get_filename())
+    try:
+        print(msg.get_property('session-key'))
+    except:
+        pass
+    break
+")
+fi
+if [[ -n $sessionkey ]]; then
+    gpg-wrap () {
+        () {
+            gpg --override-session-key-fd ${1:t} "$@[2,$]"
+        } <(<<< $sessionkey) "$@"
+    }
+else
+    gpg-wrap () gpg
+fi
+
+{
+    echo "Content-Type: $PIPE_CONTENTTYPE"
+    echo
+    cat
+} > "$tmp"
+
+n=$(mshow -t "$tmp" | awk -F: '
+/: application\/pgp-encrypted/ {supported = 1}
+/: application\/octet-stream/ {if (supported) print $1}')
+
+if [ "$n" ]; then
+    mshow -O "$tmp" "$n" | gpg-wrap -d 2>&1 || exit 0
+    exit 64
+fi
+exit 63

@@ -1,0 +1,116 @@
+#!/bin/zsh
+
+typeset -AH MAILDIR_REPLY_ICONS MAILDIR_READ_ICONS MAILDIR_SENDER_ICONS MAILDIR_CURSOR_ICONS MAILDIR_TAG_ICONS
+
+MAILDIR_CURSOR_ICONS=(
+    '>' 
+)
+
+MAILDIR_SENDER_ICONS=(
+    '<' 
+    '>' 
+    '+' 
+    ':' 
+    '=' ' ' # 
+    ' ' ' ' # 
+)
+
+MAILDIR_READ_ICONS=(
+    'x' 
+    '.' 
+    '*' 
+    'o' ' ' # 
+)
+
+MAILDIR_REPLY_ICONS=(
+    '-' 
+    ':' 
+)
+
+MAILDIR_TAG_ICONS=(
+    archive              ''
+    attachment           ''
+    cotech               ''
+    draft                ''
+    encrypted            ''
+    flagged              ''
+    gmail                ''
+    inbox                ''
+    lists                ''
+    notification         ''
+    replied              ''
+    signed               ''
+    unread               ''
+    tubs                 ''
+    ibr                  ''
+    muted                'ﱝ'
+    autocrypt            ''
+    autocrypt::baduid    ''
+    autocrypt::mismatch  ''
+)
+
+load_mailtags() {
+    [[ ! -f $1 ]] && { echo 'Mailtags file not found!' >&2; return 1 }
+    local filename tags
+    while IFS= read -r filename; IFS= read -r tags; do
+        filename=${filename%:*}
+        mailtags[$filename]=$tags
+    done < $1
+}
+
+() {
+    local senderstatus senderstatus_icon
+    local readstatus replystatus readstatus_icon
+    local timestamp yesterdate=$(date -d yesterday -I)
+    local tags_text
+    local -a tags
+
+    local -A mailtags
+    if [[ -n $MAILTAGS && -f $MAILTAGS ]]; then
+        load_mailtags $MAILTAGS
+    fi
+
+    MBLAZE_PAGER= mscan -f '%R\n%t%u%r%10D%c%-3n %10d %25f ||| %2i%s' -- : 2>/dev/null | while IFS= read -r filename; IFS= read -r line; do
+        filename=${filename%:*}
+        tags=( )
+        tags_text=
+        for i in ${=mailtags[$filename]}; do
+            tags+=( ${MAILDIR_TAG_ICONS[$i]-$i} )
+        done
+        if [[ -n $tags ]]; then
+            tags_text="[ ${(j: :)tags} ]"
+        fi
+
+        senderstatus=$line[1]
+        senderstatus_icon=${MAILDIR_SENDER_ICONS[$senderstatus]:-$senderstatus}
+
+        readstatus=$line[2]
+        replystatus=$line[3]
+
+        if [[ $replystatus != ' ' ]]; then
+            readstatus_icon=${MAILDIR_REPLY_ICONS[$replystatus]:-$replystatus}
+        else
+            readstatus_icon=${MAILDIR_READ_ICONS[$readstatus]:-$readstatus}
+        fi
+
+        timestamp=$line[4,13]
+
+        cursorstatus=$line[14]
+        cursorstatus_icon=${MAILDIR_CURSOR_ICONS[$cursorstatus]:-$cursorstatus}
+
+        if [[ $readstatus == 'x' ]]; then
+            linecolor=${(%):-%F{9}}
+        elif [[ $readstatus == '.' ]]; then
+            linecolor=${(%):-%F{193}}
+        elif [[ $timestamp < $yesterdate ]]; then
+            linecolor=${(%):-%F{244}}
+        else
+            linecolor=${(%):-%f}
+        fi
+
+        line=$line[15,$]
+        line=${line//|||/ $senderstatus_icon }
+        echo -E - "$linecolor ${cursorstatus_icon} ${readstatus_icon}  $line ${tags_text}"
+    done
+}
+

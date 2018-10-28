@@ -1,0 +1,5 @@
+#!/bin/zsh
+
+() {
+    sieve-connect -s mugenguild.com --notlsverify -u valodim --passwordfd ${1:t} --remotesieve lists.sieve --edit
+} <(pass show mail/mail.mugenguild.com)

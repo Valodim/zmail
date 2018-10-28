@@ -1,0 +1,36 @@
+#!/usr/bin/python3
+import sys
+import os
+import io
+from talon import quotations
+
+# talon.init()
+
+# re-encode from given charset
+try:
+    charset = os.environ['PIPE_CHARSET']
+except:
+    charset = 'utf-8'
+input_stream = io.TextIOWrapper(sys.stdin.buffer, encoding=charset)
+
+msg = input_stream.read()
+linecount = msg.count("\n")
+fullsize = len(msg)
+strippedmsg = quotations.extract_from_plain(msg)
+strippedlines = linecount - strippedmsg.count("\n")
+pieces = strippedmsg.split("\n-- \n", 2)
+strippedmsg = pieces[0]
+strippedmsg = strippedmsg.strip()
+signature = pieces[1] if len(pieces) > 1 else ""
+signaturelines = signature.count("\n")
+
+tail = ""
+if (signaturelines > 3):
+    tail += "\n\n-- \n[{} lines signatures]".format(signaturelines)
+else:
+    tail += "\n-- \n" + signature
+if (strippedlines > 4):
+    tail += "\n[{} lines of quotations]".format(strippedlines)
+
+
+print(strippedmsg + tail)

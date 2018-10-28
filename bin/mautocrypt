@@ -1,0 +1,18 @@
+#!/bin/zsh
+
+local action=list
+while getopts 'i' opt; do
+  case $opt in
+    i) action=import ;;
+  esac
+done
+
+typeset -a ac
+ac=( "${(@f)"$(mhdr -h autocrypt . | sed -E 's/ //g; s/addr=([^;]+);(.*;?)keydata=(.+)/\1\n\2\n\3/')"}" )
+
+[[ -z $ac ]] && { echo "No Autocrypt header" >&2; return 2; }
+
+case $action in
+  list) base64 -d <<< $ac[3] | gpg --list-packets;;
+  import) base64 -d <<< $ac[3] | gpg --import;;
+esac

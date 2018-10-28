@@ -1,0 +1,3 @@
+#!/bin/sh
+
+exec mseq -f : | mthread 2>/dev/null | mseq -S
