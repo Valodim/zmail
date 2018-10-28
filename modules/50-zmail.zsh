@@ -1,25 +1,25 @@
-typeset -gH ZSH_MAILDIR_LIST ZSH_MAILDIR_QUERY
+typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY
 
 +zmail-trigger () {
     [[ $PWD == ~/Maildir ]]
 }
 
 +zmail-enter () {
-    ZSH_MAILDIR_QUERY=inbox
+    ZMAIL_QUERY=inbox
 
     local seqdir=${MBLAZE:-$HOME/.mblaze}/seqs
     mkdir -p $seqdir
     export MAILSEQ=$seqdir/$$.$(pwgen 5 1)
     export MAILTAGS=$MAILSEQ.tags
-    maildir_load_queries
-    maildir_loadseq
+    zmail_load_queries
+    zmail_loadseq
 
     alias -g M='$(mseq .)'
     alias -g MSGID='$(maddr -h message-id -a .)'
     alias -g MID='mid:$(maddr -h message-id -a .)'
-    alias -g MQ='$(maildir_current_query)'
+    alias -g MQ='$(zmail_current_query)'
 
-    ZSH_MAILDIR_LIST=1
+    ZMAIL_LIST=1
 }
 
 +zmail-leave() {
@@ -36,29 +36,29 @@ typeset -gH ZSH_MAILDIR_LIST ZSH_MAILDIR_QUERY
 }
 
 +zmail-bindkeys () {
-    bindkey '^[j' maildir-move-next-list
-    bindkey '^[k' maildir-move-prev-list
-    bindkey '^[h' maildir-move-5prev-list
-    bindkey '^[l' maildir-move-5next-list
-    bindkey '^[t' maildir-move-top-list
-    bindkey '^[e' maildir-move-end-list
+    bindkey '^[j' zmail-move-next-list
+    bindkey '^[k' zmail-move-prev-list
+    bindkey '^[h' zmail-move-5prev-list
+    bindkey '^[l' zmail-move-5next-list
+    bindkey '^[t' zmail-move-top-list
+    bindkey '^[e' zmail-move-end-list
 
-    bindkey '^[o' maildir-open
-    bindkey '^[O' maildir-open-full
-    bindkey '^[r' maildir-refresh-list
+    bindkey '^[o' zmail-open
+    bindkey '^[O' zmail-open-full
+    bindkey '^[r' zmail-refresh-list
 
-    bindkey '^[p' maildir-reply
+    bindkey '^[p' zmail-reply
 
-    bindkey '^[m' maildir-mark-seen-list # like "Mark seen'
-    bindkey '^[n' maildir-mark-unseen-list # like "New"
-    bindkey '^[b' maildir-mark-trash-list # like "garBage"
-    bindkey '^[B' maildir-mark-spam-list # like shift-garBage
+    bindkey '^[m' zmail-mark-seen-list # like "Mark seen'
+    bindkey '^[n' zmail-mark-unseen-list # like "New"
+    bindkey '^[b' zmail-mark-trash-list # like "garBage"
+    bindkey '^[B' zmail-mark-spam-list # like shift-garBage
 }
 
 +zmail-line-init() {
     mfix
-    if [[ -n $ZSH_MAILDIR_LIST ]]; then
-        ZSH_MAILDIR_LIST=
+    if [[ -n $ZMAIL_LIST ]]; then
+        ZMAIL_LIST=
         echo
         mfancyscan
         zle .redisplay
@@ -68,11 +68,11 @@ typeset -gH ZSH_MAILDIR_LIST ZSH_MAILDIR_QUERY
 +zmail-line-finish() {
     case $BUFFER in
         "")
-            ZSH_MAILDIR_LIST=1
+            ZMAIL_LIST=1
             ;;
         <->)
             BUFFER=" mseq -C $BUFFER"
-            ZSH_MAILDIR_LIST=1
+            ZMAIL_LIST=1
             zle .accept-line
             ;;
     esac
@@ -93,15 +93,15 @@ typeset -gH ZSH_MAILDIR_LIST ZSH_MAILDIR_QUERY
         drafticon=" $#drafts "
     fi
 
-    local mailboxquery=$ZSH_MAILDIR_QUERY
+    local mailboxquery=$ZMAIL_QUERY
     if [[ $mailboxquery == custom ]]; then
-        mailboxquery='[ '${ZSH_MAILDIR_CUSTOM_QUERY[1,25]}' ]'
+        mailboxquery='[ '${ZMAIL_CUSTOM_QUERY[1,25]}' ]'
     fi
     prompt_bits+=( "%K{black}$sep1%F{white} $mailboxquery  $mailnum ${drafticon}%F{black}" )
 }
 
-typeset -hA maildir_ops
-maildir_ops=(
+typeset -A zmail_ops
+zmail_ops=(
     'open'        'm'
     'open-full'   'MAILFILTER=~/.mblaze/filter-nostrip m'
 
@@ -121,21 +121,21 @@ maildir_ops=(
     'mark-trash'  'mflag -T'
     'mark-spam'   'mspam'
 )
-maildir-op-generic() {
+zmail-op-generic() {
     local should_list=
     [[ $WIDGET == *-list ]] && should_list=1
-    local op=${${WIDGET#maildir-}%-list}
-    local cmd=$maildir_ops[$op]
+    local op=${${WIDGET#zmail-}%-list}
+    local cmd=$zmail_ops[$op]
     [[ -z $cmd ]] && zle -M 'no such op' && return
 
     zle .push-line
     BUFFER=" $cmd"
-    [[ -n $should_list ]] && ZSH_MAILDIR_LIST=1
+    [[ -n $should_list ]] && ZMAIL_LIST=1
     zle .accept-line
 }
-for i in ${(k)maildir_ops}; do
-    zle -N maildir-$i maildir-op-generic
-    zle -N maildir-$i-list maildir-op-generic
+for i in ${(k)zmail_ops}; do
+    zle -N zmail-$i zmail-op-generic
+    zle -N zmail-$i-list zmail-op-generic
 done
 
 m() {
@@ -160,38 +160,38 @@ mclean() {
     numtrashed=$(mdirs . | grep -v -E '(Trash|Spam)' | mlist -T | mrefile -v Trash | wc -l)
     echo "Moved $numtrashed msgs to Trash. Reindexing…"
     notmuch new
-    ZSH_MAILDIR_LIST=1
+    ZMAIL_LIST=1
 }
 
 mrefresh() {
     notmuch new --quiet
-    maildir_loadseq
+    zmail_loadseq
 }
 
-maildir_load_queries() {
+zmail_load_queries() {
     setopt localoptions extendedglob
     local name query
-    typeset -gAH ZSH_MAILDIR_QUERIES
-    ZSH_MAILDIR_QUERIES=( )
+    typeset -gAH ZMAIL_QUERIES
+    ZMAIL_QUERIES=( )
     while read -r line; do
         line=${line%%\#*}
         name=${line%%:*}
         query=${${line#*:}## #}
         [[ -n $name && -n $query ]] || continue
-        ZSH_MAILDIR_QUERIES[$name]=$query
+        ZMAIL_QUERIES[$name]=$query
     done < ${MBLAZE:-$HOME/.mblaze}/notmuch-queries
 }
 
-maildir_current_query() {
-    if [[ $ZSH_MAILDIR_QUERY == custom ]] && (( $+ZSH_MAILDIR_CUSTOM_QUERY )); then
-        echo -E - $ZSH_MAILDIR_CUSTOM_QUERY
+zmail_current_query() {
+    if [[ $ZMAIL_QUERY == custom ]] && (( $+ZMAIL_CUSTOM_QUERY )); then
+        echo -E - $ZMAIL_CUSTOM_QUERY
     else
-        echo -E - $ZSH_MAILDIR_QUERIES[$ZSH_MAILDIR_QUERY]
+        echo -E - $ZMAIL_QUERIES[$ZMAIL_QUERY]
     fi
 }
 
-maildir_loadseq() {
-    local query="$(maildir_current_query)"
+zmail_loadseq() {
+    local query="$(zmail_current_query)"
 
     local -a message_tags
     local -A msgs_with_tags
@@ -209,20 +209,20 @@ for msg in Database().create_query(sys.argv[1]).search_messages():
 mq() {
     if [[ $1 == -e ]]; then
         ${EDITOR:-vim} ${MBLAZE:-$HOME/.mblaze}/notmuch-queries
-        maildir_load_queries
+        zmail_load_queries
     elif (( $# > 0 )); then
-        if (( $+ZSH_MAILDIR_QUERIES[$1] )); then
-            ZSH_MAILDIR_QUERY=$1
-            unset ZSH_MAILDIR_CUSTOM_QUERY
+        if (( $+ZMAIL_QUERIES[$1] )); then
+            ZMAIL_QUERY=$1
+            unset ZMAIL_CUSTOM_QUERY
         else
-            typeset -agH ZSH_MAILDIR_CUSTOM_QUERY
-            ZSH_MAILDIR_CUSTOM_QUERY=( "$@" )
-            ZSH_MAILDIR_QUERY=custom
+            typeset -agH ZMAIL_CUSTOM_QUERY
+            ZMAIL_CUSTOM_QUERY=( "$@" )
+            ZMAIL_QUERY=custom
         fi
-        ZSH_MAILDIR_LIST=1
-        maildir_loadseq
+        ZMAIL_LIST=1
+        zmail_loadseq
     else
-        for k v in ${(kv)ZSH_MAILDIR_QUERIES}; do
+        for k v in ${(kv)ZMAIL_QUERIES}; do
             print -- $k: $v
         done
     fi

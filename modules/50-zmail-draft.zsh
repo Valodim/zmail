@@ -3,33 +3,33 @@
 }
 
 +zmail-draft-bindkeys () {
-    bindkey '^[o' draftdir-open
-    bindkey '^[O' draftdir-open-full
+    bindkey '^[o' zmail-draft-open
+    bindkey '^[O' zmail-draft-open-full
 
-    bindkey '^[p' draftdir-preview
-    bindkey '^[P' draftdir-preview-full
+    bindkey '^[p' zmail-draft-preview
+    bindkey '^[P' zmail-draft-preview-full
 }
 
-typeset -hA draftdir_ops
-draftdir_ops=(
+typeset -A zmail_draft_ops
+zmail_draft_ops=(
     'open'        'm ./reply.orig'
     'open-full'   'MAILFILTER=~/.mblaze/filter-nostrip m ./reply.orig'
 
     'preview'        'mbuild; m ./build/message.mime'
     'preview-full'   'mbuild; MAILFILTER=~/.mblaze/filter-nostrip m ./build/message.mime'
 )
-draftdir-op-generic() {
-    local op=${${WIDGET#draftdir-}%-list}
-    local cmd=$draftdir_ops[$op]
+zmail-draft-op-generic() {
+    local op=${${WIDGET#zmail-draft-}%-list}
+    local cmd=$zmail-draft_ops[$op]
     [[ -z $cmd ]] && zle -M 'no such op' && return
 
     zle .push-line
     BUFFER=" $cmd"
     zle .accept-line
 }
-for i in ${(k)draftdir_ops}; do
-    zle -N draftdir-$i draftdir-op-generic
-    zle -N draftdir-$i-list draftdir-op-generic
+for i in ${(k)zmail-draft_ops}; do
+    zle -N zmail-draft-$i zmail-draft-op-generic
+    zle -N zmail-draft-$i-list zmail-draft-op-generic
 done
 
 +zmail-draft-line-finish() {
