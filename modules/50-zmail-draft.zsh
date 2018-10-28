@@ -12,22 +12,22 @@
 
 typeset -A zmail_draft_ops
 zmail_draft_ops=(
-    'open'        'm ./reply.orig'
-    'open-full'   'MAILFILTER=~/.mblaze/filter-nostrip m ./reply.orig'
+    'open'        'mshow ./reply.orig'
+    'open-full'   'MAILFILTER=~/.mblaze/filter-nostrip mshow ./reply.orig'
 
-    'preview'        'mbuild; m ./build/message.mime'
-    'preview-full'   'mbuild; MAILFILTER=~/.mblaze/filter-nostrip m ./build/message.mime'
+    'preview'        'mbuild; mshow ./build/message.mime'
+    'preview-full'   'mbuild; MAILFILTER=~/.mblaze/filter-nostrip mshow ./build/message.mime'
 )
 zmail-draft-op-generic() {
     local op=${${WIDGET#zmail-draft-}%-list}
-    local cmd=$zmail-draft_ops[$op]
+    local cmd=$zmail_draft_ops[$op]
     [[ -z $cmd ]] && zle -M 'no such op' && return
 
     zle .push-line
     BUFFER=" $cmd"
     zle .accept-line
 }
-for i in ${(k)zmail-draft_ops}; do
+for i in ${(k)zmail_draft_ops}; do
     zle -N zmail-draft-$i zmail-draft-op-generic
     zle -N zmail-draft-$i-list zmail-draft-op-generic
 done

@@ -1,3 +1,5 @@
 #!/bin/sh
 
-exec mrefile "$@" Spam
+[[ $# == 0 ]] && set -- .
+mrefile -k "$@" Spam
+mflag -T "$@" > /dev/null

@@ -46,6 +46,7 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY
     bindkey '^[o' zmail-open
     bindkey '^[O' zmail-open-full
     bindkey '^[r' zmail-refresh-list
+    bindkey '^[R' zmail-clean-list
 
     bindkey '^[p' zmail-reply
 
@@ -106,6 +107,7 @@ zmail_ops=(
     'open-full'   'MAILFILTER=~/.mblaze/filter-nostrip m'
 
     'refresh'     'mrefresh'
+    'clean'       'mclean'
 
     'reply'       'mreply'
 
@@ -141,26 +143,8 @@ done
 m() {
     mautocrypt -i &>/dev/null
 
-    mshow "$@"
-    (( ${+argv[(r)-X]} || ${+argv[(r)-O]} )) && return
-
-    local -a msgs
-    msgs=( "${@:#-*}" )
-    mflag -S $msgs > /dev/null
-}
-
-mspam() {
-    [[ $# == 0 ]] && set -- .
-    mrefile -k "$@" Spam
-    mflag -T "$@" > /dev/null
-}
-
-mclean() {
-    local numtrashed
-    numtrashed=$(mdirs . | grep -v -E '(Trash|Spam)' | mlist -T | mrefile -v Trash | wc -l)
-    echo "Moved $numtrashed msgs to Trash. Reindexing…"
-    notmuch new
-    ZMAIL_LIST=1
+    mshow
+    mflag -S > /dev/null
 }
 
 mrefresh() {
