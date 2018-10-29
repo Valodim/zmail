@@ -1,0 +1,7 @@
+#!/bin/zsh
+
+local numtrashed
+numtrashed=$(mdirs . | grep -v -E '(Trash|Spam)' | mlist -T | mrefile -v Trash | wc -l)
+echo "Moved $numtrashed msgs to Trash. Reindexing…"
+
+notmuch new
