@@ -10,28 +10,6 @@
     bindkey '^[P' zmail-draft-preview-full
 }
 
-typeset -A zmail_draft_ops
-zmail_draft_ops=(
-    'open'        'mshow ./reply.orig'
-    'open-full'   'MAILFILTER=~/.mblaze/filter-nostrip mshow ./reply.orig'
-
-    'preview'        'mbuild; mshow ./build/message.mime'
-    'preview-full'   'mbuild; MAILFILTER=~/.mblaze/filter-nostrip mshow ./build/message.mime'
-)
-zmail-draft-op-generic() {
-    local op=${${WIDGET#zmail-draft-}%-list}
-    local cmd=$zmail_draft_ops[$op]
-    [[ -z $cmd ]] && zle -M 'no such op' && return
-
-    zle .push-line
-    BUFFER=" $cmd"
-    zle .accept-line
-}
-for i in ${(k)zmail_draft_ops}; do
-    zle -N zmail-draft-$i zmail-draft-op-generic
-    zle -N zmail-draft-$i-list zmail-draft-op-generic
-done
-
 +zmail-draft-line-finish() {
     case $BUFFER in
         "")
@@ -67,3 +45,13 @@ done
 }
 
 zmode-register zmail-draft
+() {
+    local -A ops=(
+        'open'        'mshow ./reply.orig'
+        'open-full'   'MAILFILTER=~/.mblaze/filter-nostrip mshow ./reply.orig'
+
+        'preview'        'mbuild; mshow ./build/message.mime'
+        'preview-full'   'mbuild; MAILFILTER=~/.mblaze/filter-nostrip mshow ./build/message.mime'
+    )
+    zmode-generic-widgets zmail-draft ops
+}

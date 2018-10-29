@@ -1,5 +1,6 @@
 typeset -ga ZSH_MODES
 typeset -g ZSH_CURRENT_MODE
+typeset -gA ZSH_GENERIC_BUFFER_OPS
 
 zmode-register () {
     ZSH_MODES+=( $1 )
@@ -77,6 +78,22 @@ zmode-leave () {
 +zmode-prompt-precmd () {
     [[ -n $ZSH_CURRENT_MODE ]] || return
     (( $+functions[+$ZSH_CURRENT_MODE-prompt-precmd] )) && +$ZSH_CURRENT_MODE-prompt-precmd
+}
+
+generic-buffer-op () {
+    local cmd=$ZSH_GENERIC_BUFFER_OPS[$WIDGET]
+    [[ -z $cmd ]] && zle -M "no such op: $WIDGET" && return
+
+    zle .push-line
+    BUFFER=" $cmd"
+    zle .accept-line
+}
+zmode-generic-widgets () {
+    local key op
+    for key op in ${(kvP)2}; do
+        zle -N ${1}-$key generic-buffer-op
+        ZSH_GENERIC_BUFFER_OPS[${1}-$key]=$op
+    done
 }
 
 autoload -U add-zsh-hook add-zle-hook-widget
