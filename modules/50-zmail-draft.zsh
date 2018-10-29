@@ -32,6 +32,11 @@
         to[1]="?"
     fi
 
+    local address_display
+    if zstyle -s ":zmail:draft:$from" address-display address_display; then
+        from=$address_display
+    fi
+
     local attachs=( attachments/*(.N) )
     if (( $#attachs == 0 )); then
         attachs=
