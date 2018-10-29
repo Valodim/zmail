@@ -128,6 +128,7 @@ zmail_ops=(
     'mark-unseen' 'mflag -ts'
     'mark-trash'  'mflag -T'
     'mark-spam'   'mspam'
+    'mark-muted'  'notmuch tag +muted MID'
 )
 zmail-op-generic() {
     local should_list=
