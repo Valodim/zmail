@@ -1,4 +1,4 @@
-typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY
+typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY ZMAIL_NARROW_QUERY
 
 +zmail-trigger () {
     [[ $PWD == ~/Maildir ]]
@@ -17,6 +17,7 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY
     alias -g M='$(mseq .)'
     alias -g MSGID='$(maddr -h message-id -a .)'
     alias -g MID='mid:$(maddr -h message-id -a .)'
+    alias -g MTHREAD='thread:{mid:$(maddr -h message-id -a .)}'
     alias -g MQ='$(zmail_current_query)'
 
     ZMAIL_LIST=1
@@ -38,8 +39,8 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY
 +zmail-bindkeys () {
     bindkey '^[j' zmail-move-next-list
     bindkey '^[k' zmail-move-prev-list
-    bindkey '^[h' zmail-move-5prev-list
-    bindkey '^[l' zmail-move-5next-list
+    bindkey '^[h' zmail-inbox
+    bindkey '^[l' zmail-narrow-to-thread
     bindkey '^[t' zmail-move-top-list
     bindkey '^[e' zmail-move-end-list
 
@@ -102,6 +103,9 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY
     if [[ $mailboxquery == custom ]]; then
         mailboxquery='[ '${ZMAIL_CUSTOM_QUERY[1,25]}' ]'
     fi
+    if [[ $ZMAIL_NARROW_QUERY == 'thread:{mid:'*'}' ]]; then
+        mailboxquery+='/thread'
+    fi
     prompt_bits+=( "%K{black}$sep1%F{white} $mailboxquery  $mailnum ${drafticon}%F{black}" )
 }
 
@@ -119,10 +123,11 @@ zmail_ops=(
 
     'move-next'   'mseq -C .+1'
     'move-prev'   'mseq -C .-1'
-    'move-5next'  'mseq -C .+5'
-    'move-5prev'  'mseq -C .-5'
     'move-top'    'mseq -C 1'
     'move-end'    'mseq -C \$'
+
+    'narrow-to-thread' 'mq -n MTHREAD'
+    'inbox'       'mq -n'
 
     'mark-seen'   'mflag -tS'
     'mark-unseen' 'mflag -ts'
@@ -150,7 +155,7 @@ done
 m() {
     mautocrypt -i &>/dev/null
 
-    mshow
+    mshow "$@"
     mflag -S > /dev/null
 }
 
@@ -179,6 +184,9 @@ zmail_current_query() {
     else
         echo -E - $ZMAIL_QUERIES[$ZMAIL_QUERY]
     fi
+    if [[ -n $ZMAIL_NARROW_QUERY ]]; then
+        echo -E - ' AND ' $ZMAIL_NARROW_QUERY
+    fi
 }
 
 zmail_loadseq() {
@@ -201,7 +209,13 @@ mq() {
     if [[ $1 == -e ]]; then
         ${EDITOR:-vim} ${MBLAZE:-$HOME/.mblaze}/notmuch-queries
         zmail_load_queries
+    elif [[ $1 == -n ]]; then
+        shift
+        ZMAIL_NARROW_QUERY="$@"
+        ZMAIL_LIST=1
+        zmail_loadseq
     elif (( $# > 0 )); then
+        ZMAIL_NARROW_QUERY=
         if (( $+ZMAIL_QUERIES[$1] )); then
             ZMAIL_QUERY=$1
             unset ZMAIL_CUSTOM_QUERY
