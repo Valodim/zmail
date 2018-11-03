@@ -61,23 +61,27 @@ zmode-leave () {
 }
 
 +zmode-zshexit () {
-    [[ -n $ZSH_CURRENT_MODE ]] || return
+    [[ -n $ZSH_CURRENT_MODE ]] || return 0
     (( $+functions[+$ZSH_CURRENT_MODE-zshexit] )) && +$ZSH_CURRENT_MODE-zshexit
+    return 0
 }
 
 +zmode-line-init () {
-    [[ -n $ZSH_CURRENT_MODE ]] || return
+    [[ -n $ZSH_CURRENT_MODE ]] || return 0
     (( $+functions[+$ZSH_CURRENT_MODE-line-init] )) && +$ZSH_CURRENT_MODE-line-init
+    return 0
 }
 
 +zmode-line-finish () {
-    [[ -n $ZSH_CURRENT_MODE ]] || return
+    [[ -n $ZSH_CURRENT_MODE ]] || return 0
     (( $+functions[+$ZSH_CURRENT_MODE-line-finish] )) && +$ZSH_CURRENT_MODE-line-finish
+    return 0
 }
 
 +zmode-prompt-precmd () {
-    [[ -n $ZSH_CURRENT_MODE ]] || return
+    [[ -n $ZSH_CURRENT_MODE ]] || return 0
     (( $+functions[+$ZSH_CURRENT_MODE-prompt-precmd] )) && +$ZSH_CURRENT_MODE-prompt-precmd
+    return 0
 }
 
 generic-buffer-op () {
