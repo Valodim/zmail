@@ -49,6 +49,7 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY ZMAIL_NARROW_QUERY
 
     bindkey '^[o' zmail-open
     bindkey '^[O' zmail-open-full
+    bindkey '^[i' zmail-open-html
     bindkey '^[a' zmail-open-first-attach
     bindkey '^[A' zmail-enter
 
@@ -113,6 +114,7 @@ typeset -A zmail_ops
 zmail_ops=(
     'open'        'm'
     'open-full'   'MAILFILTER=~/.mblaze/filter-nostrip m'
+    'open-html'   'm -A text/html'
     'open-first-attach' 'mopenattach'
     'enter'       'menter'
 
