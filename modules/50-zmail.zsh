@@ -181,13 +181,16 @@ zmail_load_queries() {
 }
 
 zmail_current_query() {
+    if [[ -n $ZMAIL_NARROW_QUERY ]]; then
+        echo '('
+    fi
     if [[ $ZMAIL_QUERY == custom ]] && (( $+ZMAIL_CUSTOM_QUERY )); then
         echo -E - $ZMAIL_CUSTOM_QUERY
     else
         echo -E - $ZMAIL_QUERIES[$ZMAIL_QUERY]
     fi
     if [[ -n $ZMAIL_NARROW_QUERY ]]; then
-        echo -E - ' AND ' $ZMAIL_NARROW_QUERY
+        echo -E - ') AND ' $ZMAIL_NARROW_QUERY
     fi
 }
 
