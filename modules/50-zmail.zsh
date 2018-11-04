@@ -200,8 +200,13 @@ zmail_loadseq() {
     local -a message_tags
     local -A msgs_with_tags
     python =(<<< "
+from __future__ import print_function
 import sys
-from notmuch import Database, Query
+try:
+    from notmuch import Database, Query
+except:
+    print('Could not load notmuch python module (try: pip install notmuch)', file=sys.stderr)
+    sys.exit(1)
 for msg in Database().create_query(sys.argv[1]).search_messages():
     print(msg.get_filename())
     print(' '.join(msg.get_tags()))
