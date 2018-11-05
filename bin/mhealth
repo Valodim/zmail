@@ -1,0 +1,46 @@
+#!/bin/zsh
+
+local ok=${(%):-%B[%b %F{green}ok%f %B]%b}
+local err=${(%):-%B[%b %F{red}error%f %B]%b}
+local info=${(%):-%B[%b %F{yellow}info%f %B]%b}
+
+if (( $+commands[notmuch] )); then
+	echo "$ok notmuch installed"
+else
+	echo "$err notmuch installed"
+	echo "$info try: apt install notmuch"
+	return 1
+fi
+
+if python -c 'import notmuch' &> /dev/null; then
+	echo "$ok python-notmuch installed"
+else
+	echo "$err python-notmuch not installed!"
+	echo "$info try: apt install python-notmuch, or pip install notmuch"
+	return 1
+fi
+
+if (( $+commands[mseq] && $+commands[mthread] )); then
+	echo "$ok mblaze installed"
+else
+	echo "$err mblaze not installed"
+	echo "$info try: apt install mblaze"
+	return 1
+fi
+
+local nmpath=$(notmuch config get database.path)
+if [[ -n $nmpath ]]; then
+	echo "$ok notmuch configured"
+	echo "$ok Maildir is at $nmpath"
+else
+	echo "$err notmuch not configured"
+	echo "$info see: man notmuch-setup"
+fi
+
+if [[ -d ${MBLAZE:-~/.mblaze} ]]; then
+	echo "$ok mblaze configured"
+else
+	echo "$err mblaze not configured"
+	echo "$info see: man mblaze-profile"
+	return 1
+fi
