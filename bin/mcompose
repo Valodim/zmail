@@ -304,10 +304,24 @@ mbuild() {
     prepare-mime || return 1
 }
 
+mail-send-sanity-check() {
+    local required_hdrs=( To Date Message-Id Subject )
+    for hdr in $required_hdrs; do
+        mhdr -h $hdr $1 &> /dev/null || { echo "Missing header: $hdr" >&2; return 1; }
+    done
+
+    local subject=$(mhdr -h subject)
+    [[ -n $subject ]] || { echo "Empty subject!" >&2; return 1; }
+
+    return 0
+}
+
 msend() {
     mbuild || return 1
 
     [[ ! -f build/message.mime ]] && { echo "Missing build/message.mime, no message to send!" >&2; return 1; }
+
+    mail-send-sanity-check build/message.mime || return 1
 
     local MBLAZE=${MBLAZE:-$HOME/.mblaze}
     local sendmail=$(mhdr -h sendmail "$MBLAZE/profile")
