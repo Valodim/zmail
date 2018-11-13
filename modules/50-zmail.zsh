@@ -60,6 +60,8 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY ZMAIL_NARROW_QUERY
     bindkey '^[n' zmail-mark-unseen-list # like "New"
     bindkey '^[b' zmail-mark-trash-list # like "garBage"
     bindkey '^[B' zmail-mark-spam-list # like shift-garBage
+
+    for i in {0..9}; bindkey "^[$i" zmail-query-$i
 }
 
 +zmail-line-init() {
@@ -137,6 +139,8 @@ zmail_ops=(
     'mark-spam'   'mspam'
     'mark-muted'  'notmuch tag +muted MID'
 )
+for i in {0..9}; zmail_ops+=( "query-$i" "mq $i" )
+
 zmail-op-generic() {
     local should_list=
     [[ $WIDGET == *-list ]] && should_list=1
@@ -170,13 +174,16 @@ zmail_load_queries() {
     setopt localoptions extendedglob
     local name query
     typeset -gAH ZMAIL_QUERIES
+    typeset -gaH ZMAIL_QUERY_NAMES
     ZMAIL_QUERIES=( )
+    ZMAIL_QUERY_NAMES=( )
     while read -r line; do
         line=${line%%\#*}
         name=${line%%:*}
         query=${${line#*:}## #}
         [[ -n $name && -n $query ]] || continue
         ZMAIL_QUERIES[$name]=$query
+        ZMAIL_QUERY_NAMES+=$name
     done < ${MBLAZE:-$HOME/.mblaze}/notmuch-queries
 }
 
@@ -226,7 +233,10 @@ mq() {
         zmail_loadseq
     elif (( $# > 0 )); then
         ZMAIL_NARROW_QUERY=
-        if (( $+ZMAIL_QUERIES[$1] )); then
+        if [[ $1 == <-> ]]; then
+            ZMAIL_QUERY=${ZMAIL_QUERY_NAMES[$1]}
+            unset ZMAIL_CUSTOM_QUERY
+        elif (( $+ZMAIL_QUERIES[$1] )); then
             ZMAIL_QUERY=$1
             unset ZMAIL_CUSTOM_QUERY
         else
