@@ -2,7 +2,11 @@
 import sys
 import os
 import io
-from talon import quotations
+try:
+    from talon import quotations
+except:
+    print("talon not installed!", file=sys.stderr)
+    sys.exit(1)
 
 # talon.init()
 
