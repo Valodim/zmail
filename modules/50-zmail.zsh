@@ -281,6 +281,6 @@ _mq () {
     return $ret
 }
 
-compdef _mq mq
+(( $+functions[compdef] )) && compdef _mq mq
 
 zmode-register zmail
