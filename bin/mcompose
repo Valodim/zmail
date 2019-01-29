@@ -286,9 +286,10 @@ mencrypt() {
 
     {
         print-headers build/message.mime | grep -E -i -v '^(content-type|content-transfer-encoding):'
-        makemime -j \( -m 'multipart/encrypted; protocol="application/pgp-encrypted"' \
+        makemime -j \( -m 'multipart/encrypted' \
             \( -c 'application/pgp-encrypted' - \) \) -o - build/encrypted-content.mime <<< 'Version: 1'
     } > build/encrypted.mime
+    sed -i '0,/content-type/{s/multipart\/encrypted/multipart\/encrypted; protocol="application\/pgp-encrypted"/}' build/encrypted.mime
 }
 
 mbuild() {
