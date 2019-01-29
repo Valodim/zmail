@@ -1,4 +1,4 @@
-typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY ZMAIL_NARROW_QUERY
+typeset -g ZMODE_SHOULD_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY ZMAIL_NARROW_QUERY
 
 +zmail-trigger () {
     [[ $PWD == ~/Maildir ]]
@@ -20,7 +20,9 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY ZMAIL_NARROW_QUERY
     alias -g MTHREAD='thread:{mid:$(maddr -h message-id -a .)}'
     alias -g MQ='$(zmail_current_query)'
 
-    ZMAIL_LIST=1
+    ZMODE_SHOULD_LIST=1
+
+    (( $path[(I)*zmail*] == 0 )) && path+=( ~/code/zmail/bin )
 }
 
 +zmail-leave() {
@@ -52,9 +54,12 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY ZMAIL_NARROW_QUERY
     bindkey '^[i' zmail-open-html
     bindkey '^[a' zmail-open-first-attach
     bindkey '^[A' zmail-enter
+    bindkey '^[E' zmail-edit
 
     bindkey '^[p' zmail-reply
 
+    bindkey '^[f' zmail-mark-flag-list
+    bindkey '^[F' zmail-mark-unflag-list
     bindkey '^[m' zmail-mark-seen-list # like "Mark seen"
     bindkey '^[M' zmail-mark-muted-list # like "Mark Muted"
     bindkey '^[n' zmail-mark-unseen-list # like "New"
@@ -66,8 +71,7 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY ZMAIL_NARROW_QUERY
 
 +zmail-line-init() {
     mfix
-    if [[ -n $ZMAIL_LIST ]]; then
-        ZMAIL_LIST=
+    if [[ -n $ZMODE_SHOULD_LIST ]]; then
         echo
         mfancyscan
         zle .redisplay
@@ -76,16 +80,13 @@ typeset -g ZMAIL_LIST ZMAIL_QUERY ZMAIL_CUSTOM_QUERY ZMAIL_NARROW_QUERY
 
 +zmail-line-finish() {
     case $BUFFER in
-        "")
-            ZMAIL_LIST=1
-            ;;
         <->)
             BUFFER=" mseq -C $BUFFER"
-            ZMAIL_LIST=1
+            ZMODE_SHOULD_LIST=1
             zle .accept-line
             ;;
     esac
-    return 1
+    return 0
 }
 
 +zmail-prompt-precmd () {
@@ -119,6 +120,7 @@ zmail_ops=(
     'open-html'   'm -A text/html'
     'open-first-attach' 'mopenattach'
     'enter'       'menter'
+    'edit'        "${EDITOR:-vim} M"
 
     'refresh'     'mrefresh'
     'clean'       'mclean'
@@ -133,6 +135,8 @@ zmail_ops=(
     'narrow-to-thread' 'mq -n MTHREAD'
     'inbox'       'mq -n'
 
+    'mark-flag'   'mflag -tF'
+    'mark-unflag' 'mflag -tf'
     'mark-seen'   'mflag -tS'
     'mark-unseen' 'mflag -ts'
     'mark-trash'  'mflag -T'
@@ -150,7 +154,7 @@ zmail-op-generic() {
 
     zle .push-line
     BUFFER=" $cmd"
-    [[ -n $should_list ]] && ZMAIL_LIST=1
+    [[ -n $should_list ]] && ZMODE_SHOULD_LIST=1
     zle .accept-line
 }
 for i in ${(k)zmail_ops}; do
@@ -229,7 +233,7 @@ mq() {
     elif [[ $1 == -n ]]; then
         shift
         ZMAIL_NARROW_QUERY="$@"
-        ZMAIL_LIST=1
+        ZMODE_SHOULD_LIST=1
         zmail_loadseq
     elif (( $# > 0 )); then
         ZMAIL_NARROW_QUERY=
@@ -244,7 +248,7 @@ mq() {
             ZMAIL_CUSTOM_QUERY=( "$@" )
             ZMAIL_QUERY=custom
         fi
-        ZMAIL_LIST=1
+        ZMODE_SHOULD_LIST=1
         zmail_loadseq
     else
         for k v in ${(kv)ZMAIL_QUERIES}; do

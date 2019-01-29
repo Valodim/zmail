@@ -1,6 +1,7 @@
-typeset -ga ZSH_MODES
-typeset -g ZSH_CURRENT_MODE
-typeset -gA ZSH_GENERIC_BUFFER_OPS
+typeset -gHa ZSH_MODES
+typeset -gH ZSH_CURRENT_MODE
+typeset -gHA ZSH_GENERIC_BUFFER_OPS
+typeset -gH ZMODE_SHOULD_LIST
 
 zmode-register () {
     ZSH_MODES+=( $1 )
@@ -69,12 +70,19 @@ zmode-leave () {
 +zmode-line-init () {
     [[ -n $ZSH_CURRENT_MODE ]] || return 0
     (( $+functions[+$ZSH_CURRENT_MODE-line-init] )) && +$ZSH_CURRENT_MODE-line-init
+    ZMODE_SHOULD_LIST=
     return 0
 }
 
 +zmode-line-finish () {
+    integer ret=0
     [[ -n $ZSH_CURRENT_MODE ]] || return 0
-    (( $+functions[+$ZSH_CURRENT_MODE-line-finish] )) && +$ZSH_CURRENT_MODE-line-finish
+    if (( $+functions[+$ZSH_CURRENT_MODE-line-finish] )); then
+        +$ZSH_CURRENT_MODE-line-finish || ret=1
+    fi
+    if (( ret == 0 )) && [[ -z $BUFFER ]]; then
+        ZMODE_SHOULD_LIST=1
+    fi
     return 0
 }
 
@@ -82,6 +90,14 @@ zmode-leave () {
     [[ -n $ZSH_CURRENT_MODE ]] || return 0
     (( $+functions[+$ZSH_CURRENT_MODE-prompt-precmd] )) && +$ZSH_CURRENT_MODE-prompt-precmd
     return 0
+}
+
+zmode-generic-widgets () {
+    local key op
+    for key op in ${(kvP)2}; do
+        zle -N ${1}-$key generic-buffer-op
+        ZSH_GENERIC_BUFFER_OPS[${1}-$key]=$op
+    done
 }
 
 generic-buffer-op () {
@@ -92,12 +108,53 @@ generic-buffer-op () {
     BUFFER=" $cmd"
     zle .accept-line
 }
-zmode-generic-widgets () {
-    local key op
-    for key op in ${(kvP)2}; do
-        zle -N ${1}-$key generic-buffer-op
-        ZSH_GENERIC_BUFFER_OPS[${1}-$key]=$op
-    done
+
+zmode-generic-sub() {
+    setopt localoptions extendedglob
+    local sub=${WIDGET##*-}
+    local -a pieces=( ${(z)BUFFER} )
+    if [[ $pieces[1] != $sub ]]; then
+        BUFFER="$pieces[1] $sub "
+        CURSOR=$#BUFFER
+    fi
+
+    (( $+functions[$WIDGET-hook] )) && $WIDGET-hook
+}
+
+zmode-generic-flag() {
+    setopt localoptions extendedglob
+    local flag=${(M)WIDGET%%-##[^-]##}
+    local -a pieces=( ${(z)BUFFER} )
+    if (( $+pieces[(r)$flag])); then
+        BUFFER=${BUFFER/ $flag/}
+    else
+        BUFFER="${BUFFER% } $flag "
+        CURSOR=$#BUFFER
+    fi
+}
+
+zmode-generic-param() {
+    setopt localoptions extendedglob
+    local arg=${(M)WIDGET%%-##[^-]##}
+    local quoted=
+    [[ $WIDGET = *-quoted-* ]] && quoted=1
+
+    local -a pieces=( ${(z)BUFFER} )
+    local pos=$pieces[(i)$arg]
+    if (( pos < $#pieces )); then
+        CURSOR=$(( ${(c)#${pieces[1,pos+1]}} -1 ))
+        [[ $BUFFER[CURSOR-1] == (\'|\") ]] && CURSOR+=-1
+    else
+        BUFFER="${BUFFER% } $arg "
+        if [[ -n $quoted ]]; then
+            BUFFER+="''"
+            CURSOR=$(( $#BUFFER - 1 ))
+        else
+            CURSOR=$#BUFFER
+        fi
+    fi
+
+    zle .send-break
 }
 
 autoload -U add-zsh-hook add-zle-hook-widget
